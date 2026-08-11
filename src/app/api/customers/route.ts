@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       query: searchParams.get("query") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       source: searchParams.get("source") ?? undefined,
+      tag: searchParams.get("tag") ?? undefined,
       reminder:
         reminder === "today" || reminder === "overdue" || reminder === "pending"
           ? reminder

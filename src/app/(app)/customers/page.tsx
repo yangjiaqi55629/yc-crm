@@ -4,14 +4,15 @@ import { Filter, Plus, Search, UsersRound } from "lucide-react";
 import { StatusBadge } from "@/components/customers/status-badge";
 import { formatDateTime } from "@/lib/datetime";
 import { requireUser } from "@/lib/auth";
-import { listCustomers } from "@/services/customer.service";
+import { listCustomers, listCustomerTagNames } from "@/services/customer.service";
 
-type SearchParams = Promise<{ query?: string; status?: string; source?: string; reminder?: "today" | "overdue" | "pending" }>;
+type SearchParams = Promise<{ query?: string; status?: string; source?: string; tag?: string; reminder?: "today" | "overdue" | "pending" }>;
 
 export default async function CustomersPage({ searchParams }: { searchParams: SearchParams }) {
   await requireUser();
   const filters = await searchParams;
   const customers = listCustomers(filters);
+  const tagNames = listCustomerTagNames();
 
   return (
     <div className="page-stack">
@@ -21,6 +22,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Se
           <label className="search-field"><Search size={18} /><input name="query" defaultValue={filters.query ?? ""} placeholder="搜索姓名、手机号或邮箱" /></label>
           <label><span className="sr-only">客户状态</span><select name="status" defaultValue={filters.status ?? ""}><option value="">全部状态</option><option value="pending">待跟进</option><option value="following">跟进中</option><option value="high_intent">高意向</option><option value="converted">已转化</option><option value="lost">无效/流失</option></select></label>
           <label><span className="sr-only">来源</span><select name="source" defaultValue={filters.source ?? ""}><option value="">全部来源</option><option value="web">门户网站</option><option value="manual">手动录入</option></select></label>
+          <label><span className="sr-only">标签</span><select name="tag" defaultValue={filters.tag ?? ""}><option value="">全部标签</option>{tagNames.map((tag) => <option value={tag} key={tag}>{tag}</option>)}</select></label>
           <label><span className="sr-only">待办</span><select name="reminder" defaultValue={filters.reminder ?? ""}><option value="">全部客户</option><option value="pending">待跟进</option><option value="today">今日应跟进</option><option value="overdue">已逾期</option></select></label>
           <button className="secondary-button" type="submit"><Filter size={16} /> 筛选</button>
         </form>

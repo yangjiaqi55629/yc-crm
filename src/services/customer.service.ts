@@ -203,6 +203,7 @@ export type CustomerFilters = {
   query?: string;
   status?: string;
   source?: string;
+  tag?: string;
   reminder?: "today" | "overdue" | "pending";
   archived?: boolean;
 };
@@ -263,7 +264,13 @@ export function listCustomers(filters: CustomerFilters = {}) {
     .all();
 
   const tagMap = getTagsForCustomerIds(rows.map((row) => row.id));
-  return rows.map((row) => ({ ...row, tags: tagMap.get(row.id) ?? [] }));
+  const result = rows.map((row) => ({ ...row, tags: tagMap.get(row.id) ?? [] }));
+  const tag = filters.tag?.trim();
+  return tag ? result.filter((customer) => customer.tags.includes(tag)) : result;
+}
+
+export function listCustomerTagNames() {
+  return db.select({ name: tags.name }).from(tags).orderBy(tags.name).all().map((row) => row.name);
 }
 
 function getTagsForCustomerIds(customerIds: string[]) {
