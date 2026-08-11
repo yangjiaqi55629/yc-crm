@@ -8,7 +8,10 @@ export const followUpInputSchema = z.object({
   outcome: z.string().trim().max(1000).optional().nullable(),
   followUpAt: z.string().trim().min(1),
   nextFollowUpAt: z.string().trim().optional().nullable(),
-  statusAfter: z.enum(CUSTOMER_STATUSES).optional().nullable(),
+  statusAfter: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.enum(CUSTOMER_STATUSES).optional().nullable(),
+  ),
 });
 
 export type FollowUpInput = z.infer<typeof followUpInputSchema>;
