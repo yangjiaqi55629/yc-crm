@@ -37,26 +37,33 @@ export function CustomerWorkspace({
   const [followPending, setFollowPending] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis>(latestAnalysis);
   const [analysisPending, setAnalysisPending] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
 
   async function addFollowUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setFollowError("");
     setFollowPending(true);
-    const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const formData = new FormData(form);
+    if (formData.get("statusAfter") === "") formData.delete("statusAfter");
+    const data = Object.fromEntries(formData.entries());
     const response = await fetch(`/api/customers/${customer.id}/follow-ups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const body = await response.json().catch(() => ({}));
     setFollowPending(false);
     if (!response.ok) { setFollowError(body.error ?? "保存跟进失败。"); return; }
-    event.currentTarget.reset();
+    form.reset();
     router.refresh();
   }
 
   async function generateAnalysis() {
+    setAnalysisError("");
     setAnalysisPending(true);
     const response = await fetch(`/api/customers/${customer.id}/ai-analysis`, { method: "POST" });
     const body = await response.json().catch(() => ({}));
     setAnalysisPending(false);
-    if (response.ok) { setAnalysis(body); router.refresh(); }
+    if (!response.ok) { setAnalysisError(body.error ?? "生成销售建议失败。"); return; }
+    setAnalysis(body);
+    router.refresh();
   }
 
   async function archiveCustomer() {
@@ -85,7 +92,7 @@ export function CustomerWorkspace({
       </div>
       <aside className="detail-side">
         <section className="panel info-panel"><p className="eyebrow">客户概览</p><dl><div><dt>需求描述</dt><dd>{customer.needDescription || "尚未记录"}</dd></div><div><dt>预算范围</dt><dd>{customer.budgetRange || "尚未记录"}</dd></div><div><dt>最近跟进</dt><dd>{formatDateTime(customer.lastFollowUpAt)}</dd></div><div><dt>下次跟进</dt><dd className={customer.nextFollowUpAt && new Date(customer.nextFollowUpAt) < new Date() ? "overdue-text" : ""}>{formatDateTime(customer.nextFollowUpAt)}</dd></div></dl><div className="tag-row top-gap">{tags.length ? tags.map((tag) => <span className="tag" key={tag}>{tag}</span>) : <span className="muted">尚未设置标签</span>}</div></section>
-        <section className="panel ai-panel"><div className="panel-heading"><div><p className="eyebrow">AI 销售助手</p><h2>客户洞察</h2></div><Sparkles size={20} /></div><p className="muted">基于客户档案、留资历史和跟进记录生成建议。</p><button className="secondary-button full-width" onClick={generateAnalysis} disabled={analysisPending} type="button">{analysisPending ? <><LoaderCircle className="spin" size={16} /> 正在分析…</> : <><Sparkles size={16} /> 生成销售建议</>}</button>{analysis && <div className="insight"><p className="demo-note">{analysis.insight.isDemo ? "当前为本地规则建议，配置模型后将使用真实 AI 分析。" : "AI 分析结果"}</p><h3>客户画像</h3><p>{analysis.insight.portrait}</p><h3>下一步建议</h3><p>{analysis.insight.nextAction}</p><h3>建议话术</h3><blockquote>{analysis.insight.script}</blockquote><button className="copy-button" onClick={() => copyText(analysis.insight.script)} type="button"><Copy size={14} /> 复制话术</button></div>}</section>
+        <section className="panel ai-panel"><div className="panel-heading"><div><p className="eyebrow">AI 销售助手</p><h2>客户洞察</h2></div><Sparkles size={20} /></div><p className="muted">基于客户档案、留资历史和跟进记录生成建议。</p><button className="secondary-button full-width" onClick={generateAnalysis} disabled={analysisPending} type="button">{analysisPending ? <><LoaderCircle className="spin" size={16} /> 正在分析…</> : <><Sparkles size={16} /> 生成销售建议</>}</button>{analysisError && <p className="form-error">{analysisError}</p>}{analysis && <div className="insight"><p className="demo-note">{analysis.insight.isDemo ? "当前为本地规则建议，配置模型后将使用真实 AI 分析。" : `AI 分析结果 · ${analysis.modelName}`}</p><h3>客户画像</h3><p>{analysis.insight.portrait}</p><h3>下一步建议</h3><p>{analysis.insight.nextAction}</p><h3>建议话术</h3><blockquote>{analysis.insight.script}</blockquote><button className="copy-button" onClick={() => copyText(analysis.insight.script)} type="button"><Copy size={14} /> 复制话术</button></div>}</section>
         <section className="panel compact-history"><div className="panel-heading"><div><p className="eyebrow">门户留资</p><h2>留资历史</h2></div></div>{leadHistory.length ? <div className="mini-list">{leadHistory.map((event) => <div key={event.id}><strong>{event.rawName}</strong><span>{formatDateTime(event.submittedAt)}</span><small>{event.rawEmail || "未提供邮箱"}</small></div>)}</div> : <div className="empty-panel">该客户由手动录入。</div>}</section>
       </aside>
     </div>

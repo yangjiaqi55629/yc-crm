@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
 
 import { db } from "@/db/client";
 import { aiAnalyses, customers, followUps, leadEvents, timelineEvents } from "@/db/schema";
@@ -19,7 +20,7 @@ export type AiInsight = {
   isDemo: boolean;
 };
 
-function createRuleBasedInsight(input: {
+type AnalysisInput = {
   name: string;
   company: string | null;
   title: string | null;
@@ -28,7 +29,44 @@ function createRuleBasedInsight(input: {
   status: string;
   followUps: { content: string; outcome: string | null }[];
   leadCount: number;
-}): AiInsight {
+};
+
+type AiConfiguration = {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
+const insightListSchema = z.preprocess(
+  (value) => typeof value === "string" ? [value] : value,
+  z.array(z.string().trim().min(1).max(500)).min(1).max(8),
+);
+
+const providerInsightSchema = z.object({
+  portrait: z.string().trim().min(1).max(2000),
+  needs: insightListSchema,
+  intent: z.string().trim().min(1).max(1000),
+  basis: insightListSchema,
+  communicationFocus: insightListSchema,
+  questions: insightListSchema,
+  nextAction: z.string().trim().min(1).max(1000),
+  script: z.string().trim().min(1).max(3000),
+});
+
+export class AiProviderError extends Error {}
+
+function getAiConfiguration(): AiConfiguration | null {
+  const baseUrl = process.env.AI_API_BASE_URL?.trim().replace(/\/$/, "");
+  const apiKey = process.env.AI_API_KEY?.trim();
+  const model = process.env.AI_MODEL?.trim();
+  if (!baseUrl && !apiKey && !model) return null;
+  if (!baseUrl || !apiKey || !model) {
+    throw new AiProviderError("AI 服务配置不完整，请检查 AI_API_BASE_URL、AI_API_KEY 与 AI_MODEL。");
+  }
+  return { baseUrl, apiKey, model };
+}
+
+function createRuleBasedInsight(input: AnalysisInput): AiInsight {
   const identity = [input.company, input.title, input.industry].filter(Boolean).join("，");
   const context = input.needDescription || "当前尚未记录明确需求";
   const latest = input.followUps[0]?.outcome || input.followUps[0]?.content;
@@ -56,6 +94,55 @@ function createRuleBasedInsight(input: {
   };
 }
 
+function extractJson(content: string) {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fenced ?? content.trim();
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1)) as unknown;
+    throw new AiProviderError("AI 服务没有返回可解析的结构化建议。");
+  }
+}
+
+async function createProviderInsight(input: AnalysisInput, config: AiConfiguration): Promise<AiInsight> {
+  const instruction = [
+    "You are a B2B sales assistant. Use only the supplied customer profile and follow-up history. State unknown information as items to confirm; never invent facts.",
+    "Return one valid JSON object only, with no Markdown or explanation. It must contain portrait, needs, intent, basis, communicationFocus, questions, nextAction, and script. needs, basis, communicationFocus, and questions must be arrays of strings; all other fields must be strings.",
+    "Write all values in Simplified Chinese. Keep recommendations practical, and never make a price, contract, or delivery commitment for the sales user.",
+  ].join("\n");
+  const response = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0.3,
+      messages: [{ role: "user", content: `${instruction}\n\nCustomer data:\n${JSON.stringify(input)}` }],
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(25_000),
+  });
+  if (!response.ok) {
+    throw new AiProviderError(`AI 服务暂时不可用（HTTP ${response.status}）。`);
+  }
+
+  const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown } }> };
+  const content = payload.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new AiProviderError("AI 服务未返回有效建议内容。");
+  }
+  const parsed = providerInsightSchema.safeParse(extractJson(content));
+  if (!parsed.success) {
+    throw new AiProviderError("AI 服务返回的建议格式不符合要求，请稍后重试。");
+  }
+  return { ...parsed.data, isDemo: false };
+}
+
 export async function generateAiAnalysis(customerId: string) {
   const customer = db.select().from(customers).where(eq(customers.id, customerId)).get();
   if (!customer) return null;
@@ -72,8 +159,7 @@ export async function generateAiAnalysis(customerId: string) {
     .where(eq(leadEvents.customerId, customerId))
     .all();
 
-  // 在选择实际模型前，使用清晰标注的本地规则建议，避免在未配置密钥时意外传出客户资料。
-  const insight = createRuleBasedInsight({
+  const input: AnalysisInput = {
     name: customer.name,
     company: customer.company,
     title: customer.title,
@@ -82,7 +168,9 @@ export async function generateAiAnalysis(customerId: string) {
     status: customer.status,
     followUps: followUpRows,
     leadCount: leadRows.length,
-  });
+  };
+  const config = getAiConfiguration();
+  const insight = config ? await createProviderInsight(input, config) : createRuleBasedInsight(input);
   const createdAt = nowIso();
   const id = crypto.randomUUID();
   const snapshot = {
@@ -97,6 +185,7 @@ export async function generateAiAnalysis(customerId: string) {
     followUps: followUpRows,
     leadCount: leadRows.length,
   };
+  const modelName = config?.model ?? "local-rule-based-placeholder";
 
   db.transaction((tx) => {
     tx.insert(aiAnalyses)
@@ -105,7 +194,7 @@ export async function generateAiAnalysis(customerId: string) {
         customerId,
         inputSnapshot: JSON.stringify(snapshot),
         outputJson: JSON.stringify(insight),
-        modelName: "local-rule-based-placeholder",
+        modelName,
         createdAt,
       })
       .run();
@@ -115,7 +204,7 @@ export async function generateAiAnalysis(customerId: string) {
         customerId,
         type: "ai_analysis_generated",
         title: "生成客户分析与销售建议",
-        detail: "当前为未配置模型时的本地规则建议。",
+        detail: insight.isDemo ? "当前为未配置模型时的本地规则建议。" : `使用 ${modelName} 生成 AI 销售建议。`,
         relatedId: id,
         occurredAt: createdAt,
         createdAt,
@@ -123,7 +212,7 @@ export async function generateAiAnalysis(customerId: string) {
       .run();
   });
 
-  return { id, createdAt, modelName: "local-rule-based-placeholder", insight };
+  return { id, createdAt, modelName, insight };
 }
 
 export function getLatestAiAnalysis(customerId: string) {
