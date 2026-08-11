@@ -27,6 +27,12 @@
 
 首次登录会在数据库中创建一个管理员账号。开发环境未设置密码时，默认账号是 `admin`，默认密码是 `ChangeMe123!`；生产环境不会接受该默认值，必须设置 `CRM_ADMIN_PASSWORD`。
 
+## 生产环境安全配置
+
+- 默认情况下，生产环境登录 Cookie 仅会通过 HTTPS 发送。请在配置好域名和证书后保持 `CRM_SESSION_COOKIE_SECURE=true`（或不设置该变量）。
+- 仅在受控的临时 HTTP 验证环境中，才可设为 `CRM_SESSION_COOKIE_SECURE=false`；启用 HTTPS 后必须删除该配置或改回 `true`。
+- `CRM_ADMIN_PASSWORD`、`PORTAL_SYNC_SECRET`、AI 密钥等均只能保存在服务端环境文件中，不得写入仓库或以 `NEXT_PUBLIC_` 前缀暴露。
+
 ## 数据库
 
 - 默认文件：`data/crm.db`
@@ -59,15 +65,14 @@
 
 同一个 `eventKey` 只会被处理一次；相同规范化手机号会合并为同一客户，并保留新的门户留资事件。
 
-## 门户源代码待接入项
+## 门户源代码接入
 
-门户源码位于同级 `../portal` 目录时，可依照 [技术方案](../technical-design.md) 第 4 节完成以下接入：
+门户源码位于同级 `../portal` 目录时，已实现以下机制：
 
-1. 创建 `crm_sync_outbox`；
-2. 在门户 `POST /api/leads` 成功时写入 Outbox；
-3. 立即调用 CRM 接收接口；
-4. 对失败事件做指数退避重试；
-5. 提供供 CRM 同步异常页查询和人工重试的受保护接口。
+1. `crm_sync_outbox` 与门户留资在同一事务写入；
+2. 留资提交后立即签名推送 CRM；
+3. 失败事件使用指数退避自动重试；
+4. CRM 的“同步异常”页面可查看门户失败队列并发起人工重试。
 
 ## 验证命令
 
