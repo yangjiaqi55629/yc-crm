@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LockKeyhole, UserRound } from "lucide-react";
 
+import { crmUrl } from "@/lib/client-url";
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("admin");
@@ -15,7 +17,7 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
     setPending(true);
-    const response = await fetch("/api/auth/login", {
+    const response = await fetch(crmUrl("/api/auth/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),

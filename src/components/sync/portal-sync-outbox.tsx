@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, RefreshCw, TriangleAlert } from "lucide-react";
 
 import { formatDateTime } from "@/lib/datetime";
+import { crmUrl } from "@/lib/client-url";
 
 type PortalSyncFailure = {
   eventKey: string;
@@ -28,7 +29,7 @@ export function PortalSyncOutbox({ initial }: { initial: PortalSyncInitialState 
   const [retrying, setRetrying] = useState("");
 
   async function refresh() {
-    const response = await fetch("/api/integrations/portal/sync-status", { cache: "no-store" });
+    const response = await fetch(crmUrl("/api/integrations/portal/sync-status"), { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { setError(body.error ?? "暂时无法读取门户同步状态。"); return; }
     setConfigured(Boolean(body.configured));
@@ -39,7 +40,7 @@ export function PortalSyncOutbox({ initial }: { initial: PortalSyncInitialState 
   async function retry(eventKey: string) {
     setRetrying(eventKey);
     setError("");
-    const response = await fetch("/api/integrations/portal/sync-retry", {
+    const response = await fetch(crmUrl("/api/integrations/portal/sync-retry"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ eventKey }),

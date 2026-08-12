@@ -32,6 +32,7 @@
 - 默认情况下，生产环境登录 Cookie 仅会通过 HTTPS 发送。请在配置好域名和证书后保持 `CRM_SESSION_COOKIE_SECURE=true`（或不设置该变量）。
 - 仅在受控的临时 HTTP 验证环境中，才可设为 `CRM_SESSION_COOKIE_SECURE=false`；启用 HTTPS 后必须删除该配置或改回 `true`。
 - `CRM_ADMIN_PASSWORD`、`PORTAL_SYNC_SECRET`、AI 密钥等均只能保存在服务端环境文件中，不得写入仓库或以 `NEXT_PUBLIC_` 前缀暴露。
+- 如需以 `https://域名/crm/` 访问 CRM，在生产环境设定 `CRM_BASE_PATH=/crm` 后重新构建；该变量会同时生成浏览器端所需的公开路径前缀，不含任何密钥。
 
 ## 数据库
 

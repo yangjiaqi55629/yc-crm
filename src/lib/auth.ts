@@ -21,6 +21,11 @@ function shouldUseSecureSessionCookie() {
   return process.env.NODE_ENV === "production";
 }
 
+function getSessionCookiePath() {
+  const basePath = process.env.CRM_BASE_PATH?.trim().replace(/\/+$/, "") ?? "";
+  return basePath.startsWith("/") ? basePath : "/";
+}
+
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
@@ -88,7 +93,7 @@ export function sessionCookieOptions(expiresAt: string) {
     httpOnly: true,
     secure: shouldUseSecureSessionCookie(),
     sameSite: "lax" as const,
-    path: "/",
+    path: getSessionCookiePath(),
     expires: new Date(expiresAt),
   };
 }

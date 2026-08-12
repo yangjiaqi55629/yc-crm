@@ -10,6 +10,8 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { crmUrl } from "@/lib/client-url";
+
 const navigation = [
   { href: "/dashboard", label: "工作台", icon: LayoutDashboard },
   { href: "/customers", label: "客户管理", icon: UsersRound },
@@ -21,7 +23,7 @@ export function AppShell({ username, children }: { username?: string; children: 
   const router = useRouter();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(crmUrl("/api/auth/logout"), { method: "POST" });
     router.replace("/login");
     router.refresh();
   }

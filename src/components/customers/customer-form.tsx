@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 
 import { STATUS_META } from "@/lib/constants";
+import { crmUrl } from "@/lib/client-url";
 
 type CustomerFormValues = {
   id?: string;
@@ -34,7 +35,7 @@ export function CustomerForm({ initial, compact = false }: { initial?: CustomerF
     setError("");
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    const response = await fetch(initial?.id ? `/api/customers/${initial.id}` : "/api/customers", {
+    const response = await fetch(crmUrl(initial?.id ? `/api/customers/${initial.id}` : "/api/customers"), {
       method: initial?.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -7,6 +7,7 @@ import { Archive, ClipboardCheck, Copy, LoaderCircle, PencilLine, Sparkles } fro
 import { CustomerForm } from "@/components/customers/customer-form";
 import { StatusBadge } from "@/components/customers/status-badge";
 import { FOLLOW_UP_CHANNELS, STATUS_META } from "@/lib/constants";
+import { crmUrl } from "@/lib/client-url";
 import { formatDateTime, toDateTimeLocalValue } from "@/lib/datetime";
 import type { AiInsight } from "@/services/ai.service";
 
@@ -47,7 +48,7 @@ export function CustomerWorkspace({
     const formData = new FormData(form);
     if (formData.get("statusAfter") === "") formData.delete("statusAfter");
     const data = Object.fromEntries(formData.entries());
-    const response = await fetch(`/api/customers/${customer.id}/follow-ups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const response = await fetch(crmUrl(`/api/customers/${customer.id}/follow-ups`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const body = await response.json().catch(() => ({}));
     setFollowPending(false);
     if (!response.ok) { setFollowError(body.error ?? "保存跟进失败。"); return; }
@@ -58,7 +59,7 @@ export function CustomerWorkspace({
   async function generateAnalysis() {
     setAnalysisError("");
     setAnalysisPending(true);
-    const response = await fetch(`/api/customers/${customer.id}/ai-analysis`, { method: "POST" });
+    const response = await fetch(crmUrl(`/api/customers/${customer.id}/ai-analysis`), { method: "POST" });
     const body = await response.json().catch(() => ({}));
     setAnalysisPending(false);
     if (!response.ok) { setAnalysisError(body.error ?? "生成销售建议失败。"); return; }
@@ -69,7 +70,7 @@ export function CustomerWorkspace({
   async function archiveCustomer() {
     const verb = customer.archivedAt ? "恢复" : "归档";
     if (!window.confirm(`确认${verb}客户「${customer.name}」吗？`)) return;
-    await fetch(`/api/customers/${customer.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived: !customer.archivedAt }) });
+    await fetch(crmUrl(`/api/customers/${customer.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived: !customer.archivedAt }) });
     router.push("/customers");
     router.refresh();
   }
