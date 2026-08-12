@@ -2,6 +2,12 @@
 
 独立的单人客户管理系统，用于承接元川 AI 门户网站的留资，并完成客户档案、跟进、CRM 内提醒和销售建议。
 
+## 项目文档
+
+- [产品需求文档（PRD）](docs/requirements.md)
+- [技术方案](docs/technical-design.md)
+- [验收清单与测试样例](acceptance-test-checklist.md)
+
 ## 已实现
 
 - 单账号登录、数据库会话与 HttpOnly Cookie
